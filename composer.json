@@ -15,7 +15,7 @@
         "ext-openssl": "*",
         "ext-simplexml": "*",
         "guzzlehttp/guzzle": "^6.5.5",
-        "monolog/monolog": "^1.25.5",
+        "monolog/monolog": "^2.1",
         "pimple/pimple": "^3.3",
         "psr/simple-cache": "^1.0",
         "symfony/cache": "^5.1",
