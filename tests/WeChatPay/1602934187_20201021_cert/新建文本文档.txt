@@ -1,0 +1,8 @@
+7E7AE1FCA37DFDB1639F01379F51FA7DF00CAC68
+7E7AE1FCA37DFDB1639F01379F51FA7D
+
+'aes_key' => '7E7AE1FCA37DFDB1639F01379F51FA7D',
+'merchant_id' => '1602934187',
+'merchant_serial_number' => '585AE4DDA735A3D2090C1EB0EB59C1B211BBD87F',
+'merchant_private_key' => __DIR__ . '/WeChatPay/1602934187_20201021_cert/apiclient_key.pem',
+'wechatpay_certificate' => __DIR__ . '/WeChatPay/1602934187_20201021_cert/certificate.pem',
