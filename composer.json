@@ -1,5 +1,5 @@
 {
-    "name": "phphos/hub",
+    "name": "oihub/php.hub",
     "type": "library",
     "description": "Hub",
     "license": "MIT",
