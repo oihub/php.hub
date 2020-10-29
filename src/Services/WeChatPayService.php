@@ -141,9 +141,8 @@ class WeChatPayService extends Service
             throw new \Exception('请求证书失败: ' . json_encode($result));
         }
 
-        $aes = new AesUtil($this->config['aes_key']);
         foreach ($result['data'] as &$item) {
-            $item['certificate'] = $aes->decryptToString(
+            $item['certificate'] = $this->aesDecrypt(
                 $item['encrypt_certificate']['associated_data'],
                 $item['encrypt_certificate']['nonce'],
                 $item['encrypt_certificate']['ciphertext']
@@ -173,6 +172,27 @@ class WeChatPayService extends Service
     public function decrypt(string $str): string
     {
         return $this->getEncryptor()->setStage('decrypt')($str);
+    }
+
+    /**
+     * AES 解密.
+     *
+     * @param string $associatedData AES GCM additional authentication data.
+     * @param string $nonceStr AES GCM nonce.
+     * @param string $ciphertext AES GCM cipher text.
+     * @return string|bool
+     */
+    public function aesDecrypt(
+        string $associatedData,
+        string $nonceStr,
+        string $ciphertext
+    ) {
+        return (new AesUtil($this->config['aes_key']))
+            ->decryptToString(
+                $associatedData,
+                $nonceStr,
+                $ciphertext
+            );
     }
 
     /**
