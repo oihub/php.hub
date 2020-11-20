@@ -55,54 +55,34 @@ class WeChatPayService extends Service
      *
      * @param string $uri 链接.
      * @param array $params 参数.
-     * @return array
-     */
-    public function fetch(string $uri = '', array $params = []): array
-    {
-        $options = [
-            'handler' => $this->verifyStack(),
-            'base_uri' => $this->config['base_uri'],
-            'headers' => [
-                'Accept' => 'application/json',
-                'Wechatpay-Serial' => $this->config['wechatpay_serial_no'],
-            ],
-        ];
-        if ($params) {
-            $method = 'POST';
-            $options['json'] = $params;
-        } else {
-            $method = 'GET';
-        }
-        $result = $this->request($method, $uri, $options);
-        $result and $result = json_decode($result, true);
-        return $result;
-    }
-
-    /**
-     * 请求(无验证).
-     *
-     * @param string $uri 链接.
-     * @param array $params 参数.
+     * @param bool $valid 验证结果.
      * @return mixed
      */
-    public function fetchNoVerify(
+    public function fetch(
         string $uri = '',
-        array $params = []
+        array $params = [],
+        bool $valid = true
     ) {
+        $stack = HandlerStack::create();
+        $stack->push($this->wechatPayMiddleware(true, $valid), 'wechatpay');
+        $stack->push($this->logMiddleware(), 'log');
+
         $options = [
-            'handler' => $this->noopStack(),
+            'handler' => $stack,
             'base_uri' => $this->config['base_uri'],
             'headers' => [
                 'Accept' => 'application/json',
                 'Wechatpay-Serial' => $this->config['wechatpay_serial_no'],
             ],
         ];
+
         if ($params) {
             $method = 'POST';
             $options['json'] = $params;
         } else {
             $method = 'GET';
         }
+
         return $this->request($method, $uri, $options);
     }
 
@@ -111,48 +91,39 @@ class WeChatPayService extends Service
      *
      * @param string $uri 链接.
      * @param string $path 路径.
-     * @return array
+     * @return mixed
      */
-    public function media(string $uri, string $path): array
+    public function media(string $uri, string $path)
     {
+        $stack = HandlerStack::create();
+        $stack->push($this->wechatPayMiddleware(true, true), 'wechatpay');
+        $stack->push($this->logMiddleware(), 'log');
+
         $media = new MediaUtil($path);
-        $result = $this->request('POST', $uri, [
-            'handler' => $this->verifyStack(),
+        return $this->request('POST', $uri, [
+            'handler' => $stack,
             'body' => $media->getStream(),
             'headers' => [
                 'Accept' => 'application/json',
                 'content-type' => $media->getContentType(),
             ],
         ]);
-        $result and $result = json_decode($result, true);
-        return $result;
     }
 
     /**
      * 证书.
      *
-     * @return array
+     * @return mixed
      */
-    public function cert(): array
+    public function cert()
     {
-        $result = $this->request('GET', 'certificates', [
-            'handler' => $this->noopStack(),
+        $stack = HandlerStack::create();
+        $stack->push($this->wechatPayMiddleware(false, false), 'wechatpay');
+        $stack->push($this->logMiddleware(), 'log');
+
+        return $this->request('GET', 'certificates', [
+            'handler' => $stack,
         ]);
-        $result and $result = json_decode($result, true);
-
-        if (empty($result['data'])) {
-            throw new \Exception('请求证书失败: ' . json_encode($result));
-        }
-
-        foreach ($result['data'] as &$item) {
-            $item['certificate'] = $this->aesDecrypt(
-                $item['encrypt_certificate']['associated_data'],
-                $item['encrypt_certificate']['nonce'],
-                $item['encrypt_certificate']['ciphertext']
-            );
-        }
-
-        return $result;
     }
 
     /**
@@ -253,53 +224,26 @@ class WeChatPayService extends Service
         return $this->encryptor;
     }
 
-    protected function noopStack(): HandlerStack
+    protected function logMiddleware(): callable
     {
-        $stack = HandlerStack::create();
-
-        // $stack->push(RetryMiddleware::make($this->hub)->build(), 'retry');
-        $stack->push(LogMiddleware::make($this->hub, [
-            [
-                'params' => [
-                    'path' => $this->config['log_path'],
-                    'level' => Logger::DEBUG,
-                ]
+        return LogMiddleware::make($this->hub, [[
+            'params' => [
+                'path' => $this->config['log_path'],
+                'level' => Logger::DEBUG,
             ]
-        ])->build(), 'log');
-        $stack->unshift(WechatPayMiddleware::builder()
-            ->withMerchant(
-                $this->config['merchant_id'],
-                $this->config['merchant_serial_number'],
-                $this->config['merchant_private_key']
-            )
-            ->withValidator(new NoopValidator())
-            ->build(), 'wechatpay');
-
-        return $stack;
+        ]])->build();
     }
 
-    protected function verifyStack(): HandlerStack
+    protected function wechatPayMiddleware(bool $cert, bool $valid): callable
     {
-        $stack = HandlerStack::create();
-
-        // $stack->push(RetryMiddleware::make($this->hub)->build(), 'retry');
-        $stack->push(LogMiddleware::make($this->hub, [
-            [
-                'params' => [
-                    'path' => $this->config['log_path'],
-                    'level' => Logger::DEBUG,
-                ]
-            ]
-        ])->build(), 'log');
-        $stack->unshift(WechatPayMiddleware::builder()
-            ->withMerchant(
-                $this->config['merchant_id'],
-                $this->config['merchant_serial_number'],
-                $this->config['merchant_private_key']
-            )
-            ->withWechatPay([$this->config['wechatpay_certificate']])
-            ->build(), 'wechatpay');
-
-        return $stack;
+        $builder = WechatPayMiddleware::builder();
+        $builder->withMerchant(
+            $this->config['merchant_id'],
+            $this->config['merchant_serial_number'],
+            $this->config['merchant_private_key']
+        );
+        $cert and $builder->withWechatPay([$this->config['wechatpay_certificate']]);
+        $valid or $builder->withValidator(new NoopValidator());
+        return $builder->build();
     }
 }
